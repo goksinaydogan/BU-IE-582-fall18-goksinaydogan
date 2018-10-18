@@ -1,0 +1,266 @@
+---
+title: "hw1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r goksininbutunkodu, echo=FALSE, eval=TRUE}
+rm()#This removes all objects in your working space
+rm(list=ls()) #It removes everything in working space
+
+require(data.table)
+require(anytime)
+require(sp)
+
+matches_file_path='C:/Users/Aydogan/Desktop/IE582/homeworks/homework1/data/matches.rds'
+odd_details_file_path='C:/Users/Aydogan/Desktop/IE582/homeworks/homework1/data/odd_detail.rds'
+
+matches=readRDS(matches_file_path)
+
+odds=readRDS(odd_details_file_path)
+
+matches=unique(matches)
+
+#transform unix time to date time
+matches[,match_time:=anytime(date)]
+
+
+#order by match date (decreasing)
+matches=matches[order(-match_time)]
+
+#split home & away and transform characters to numeric for scores
+matches[,c("HomeGoals","AwayGoals"):=tstrsplit(score,':')][,c("HomeGoals", "AwayGoals"):=list(as.numeric(HomeGoals), as.numeric(AwayGoals))]
+
+#calculate total goals
+matches[,TotalGoals:=HomeGoals+AwayGoals]
+
+# mark over under where isover is equal to 1
+matches[,IsOver:=as.numeric(TotalGoals>2)]
+
+#filter all NAs
+matches=matches[complete.cases(matches)]
+
+#add a year column
+matches[,Year:=year(match_time)]
+
+
+#yearly average goals
+
+yearly_goals=matches[,list(AvgGoals=mean(TotalGoals)),by=list(Year)]
+
+#filter over under 2.5
+odds_ov_un=odds[betType=='ou' & totalhandicap=='2.5']
+
+#remove total handicap
+odds_ov_un[,totalhandicap:=NULL]
+
+#remove original odds data
+rm(odds); gc();
+
+#order data in ascending date
+odds_ov_un=odds_ov_un[order(matchId, oddtype,bookmaker,date)]
+
+odds_ov_un_initial=odds_ov_un[,list(start_odd=odd[1]),
+                              by=list(matchId,oddtype,bookmaker)]
+
+odds_ov_un_final=odds_ov_un[,list(final_odd=odd[.N]),
+                            by=list(matchId,oddtype,bookmaker)]
+
+#you will see 5 bookmakers: ComeOn, Expekt, Tipico, SBOBET, Unibet
+
+#get comeon initial over under odds
+comeon_over_under=odds_ov_un_initial[bookmaker=='ComeOn']
+
+comeon_wide=dcast(comeon_over_under,
+                    matchId~oddtype,
+                    value.var='start_odd')
+
+# join odds with matches
+merged_matches_comeon=merge(matches,comeon_wide,by='matchId')
+
+merged_matches_comeon[,probOver:=1/over]
+merged_matches_comeon[,probUnder:=1/under]
+
+merged_matches_comeon[,totalProb:=probOver+probUnder]
+
+merged_matches_comeon[,probOver:=probOver/totalProb]
+merged_matches_comeon[,probUnder:=probUnder/totalProb]
+
+merged_matches_comeon=merged_matches_comeon[complete.cases(merged_matches_comeon)]
+merged_matches_comeon[,totalProb:=NULL]
+
+cutpoints=seq(0,1,0.05)
+merged_matches_comeon[,odd_cut_over:=cut(probOver,cutpoints)]
+
+summary_table_comeon=merged_matches_comeon[,list(empirical_over_comeon=mean(IsOver),
+                                   probabilistic_over_comeon=mean(probOver),.N),
+                             by=list(odd_cut_over)]
+
+plot(summary_table_comeon[,list(empirical_over_comeon,probabilistic_over_comeon)],cex=4, main="ComeOn", xlab="Empirical Over", ylab="Probabilistic Over")
+abline(0,1,col='red')
+
+
+#get expekt initial over under odds
+expekt_over_under=odds_ov_un_initial[bookmaker=='Expekt']
+
+expekt_wide=dcast(expekt_over_under,
+                  matchId~oddtype,
+                  value.var='start_odd')
+
+# join odds with matches
+merged_matches_expekt=merge(matches,expekt_wide,by='matchId')
+
+merged_matches_expekt[,probOver:=1/over]
+merged_matches_expekt[,probUnder:=1/under]
+
+merged_matches_expekt[,totalProb:=probOver+probUnder]
+
+merged_matches_expekt[,probOver:=probOver/totalProb]
+merged_matches_expekt[,probUnder:=probUnder/totalProb]
+
+merged_matches_expekt=merged_matches_expekt[complete.cases(merged_matches_expekt)]
+merged_matches_expekt[,totalProb:=NULL]
+
+cutpoints=seq(0,1,0.05)
+merged_matches_expekt[,odd_cut_over:=cut(probOver,cutpoints)]
+
+summary_table_expekt=merged_matches_expekt[,list(empirical_over_expekt=mean(IsOver),
+                                                 probabilistic_over_expekt=mean(probOver),.N),
+                                           by=list(odd_cut_over)]
+
+plot(summary_table_expekt[,list(empirical_over_expekt,probabilistic_over_expekt)],cex=4, main="Expekt", xlab="Empirical Over", ylab="Probabilistic Over")
+abline(0,1,col='red')
+
+#get tipico initial over under odds
+tipico_over_under=odds_ov_un_initial[bookmaker=='Tipico']
+
+tipico_wide=dcast(tipico_over_under,
+                  matchId~oddtype,
+                  value.var='start_odd')
+
+# join odds with matches
+merged_matches_tipico=merge(matches,tipico_wide,by='matchId')
+
+merged_matches_tipico[,probOver:=1/over]
+merged_matches_tipico[,probUnder:=1/under]
+
+merged_matches_tipico[,totalProb:=probOver+probUnder]
+
+merged_matches_tipico[,probOver:=probOver/totalProb]
+merged_matches_tipico[,probUnder:=probUnder/totalProb]
+
+merged_matches_tipico=merged_matches_tipico[complete.cases(merged_matches_tipico)]
+merged_matches_tipico[,totalProb:=NULL]
+
+cutpoints=seq(0,1,0.05)
+merged_matches_tipico[,odd_cut_over:=cut(probOver,cutpoints)]
+
+summary_table_tipico=merged_matches_tipico[,list(empirical_over_tipico=mean(IsOver),
+                                                 probabilistic_over_tipico=mean(probOver),.N),
+                                           by=list(odd_cut_over)]
+
+plot(summary_table_tipico[,list(empirical_over_tipico,probabilistic_over_tipico)],cex=4, main="Tipico", xlab="Empirical Over", ylab="Probabilistic Over")
+abline(0,1,col='red')
+#get sbobet initial over under odds
+sbobet_over_under=odds_ov_un_initial[bookmaker=='SBOBET']
+
+sbobet_wide=dcast(sbobet_over_under,
+                    matchId~oddtype,
+                    value.var='start_odd')
+
+# join odds with matches
+merged_matches_sbobet=merge(matches,sbobet_wide,by='matchId')
+
+merged_matches_sbobet[,probOver:=1/over]
+merged_matches_sbobet[,probUnder:=1/under]
+
+merged_matches_sbobet[,totalProb:=probOver+probUnder]
+
+merged_matches_sbobet[,probOver:=probOver/totalProb]
+merged_matches_sbobet[,probUnder:=probUnder/totalProb]
+
+merged_matches_sbobet=merged_matches_sbobet[complete.cases(merged_matches_sbobet)]
+merged_matches_sbobet[,totalProb:=NULL]
+
+cutpoints=seq(0,1,0.05)
+merged_matches_sbobet[,odd_cut_over:=cut(probOver,cutpoints)]
+
+summary_table_sbobet=merged_matches_sbobet[,list(empirical_over_sbobet=mean(IsOver),
+                                                     probabilistic_over_sbobet=mean(probOver),.N),
+                                               by=list(odd_cut_over)]
+
+plot(summary_table_sbobet[,list(empirical_over_sbobet,probabilistic_over_sbobet)],cex=4, main="SBOBET", xlab="Empirical Over", ylab="Probabilistic Over")
+abline(0,1,col='red')
+
+#get unibet initial over under odds
+unibet_over_under=odds_ov_un_initial[bookmaker=='Unibet']
+
+unibet_wide=dcast(unibet_over_under,
+                    matchId~oddtype,
+                    value.var='start_odd')
+
+# join odds with matches
+merged_matches_unibet=merge(matches,unibet_wide,by='matchId')
+
+merged_matches_unibet[,probOver:=1/over]
+merged_matches_unibet[,probUnder:=1/under]
+
+merged_matches_unibet[,totalProb:=probOver+probUnder]
+
+merged_matches_unibet[,probOver:=probOver/totalProb]
+merged_matches_unibet[,probUnder:=probUnder/totalProb]
+
+merged_matches_unibet=merged_matches_unibet[complete.cases(merged_matches_unibet)]
+merged_matches_unibet[,totalProb:=NULL]
+
+cutpoints=seq(0,1,0.05)
+merged_matches_unibet[,odd_cut_over:=cut(probOver,cutpoints)]
+
+summary_table_unibet=merged_matches_unibet[,list(empirical_over_unibet=mean(IsOver),
+                                                     probabilistic_over_unibet=mean(probOver),.N),
+                                               by=list(odd_cut_over)]
+
+plot(summary_table_unibet[,list(empirical_over_unibet,probabilistic_over_unibet)],cex=4, main="Unibet", xlab="Empirical Over", ylab="Probabilistic Over")
+abline(0,1,col='red')
+
+```
+For the above part (Task 1 part a) 5 bookmakers are chosen, randomly. These bookmakers are ComeOn, Expekt, Tipico, SBOBET and Unibet, respectively. The 5 figures shows their probabilistic data over emprical data.
+Furthermore, x=y line is plotted on each figure as well. This line helps us determine whether a bookmaker is successful or not. As one can see except SBOBET all bookmakers plotted data are around this line, which may lead us to say, we expect SBOBET is the poorest one in guessing the bets. Moreover, the bins are selected with range of 0.05 units.
+
+
+For the below part (Task 1 part b) Unibet is chosen. The plot shows Probabilistic mean data and Empirical mean data over years for a range of 0.4-0.5. Again the bins are selected with the range of 0.05 units. As you can see in the figure the probabilistic data changes from year to year slightly, whereas empirical data changes with more variation.
+```{r goksininbutunkodu, echo=FALSE, eval=TRUE}
+#for part b, bookmaker Unibet is selected
+
+
+summary_table=merged_matches_unibet[,list(empirical_over_unibet=mean(IsOver),
+                                   probabilistic_over_unibet=mean(probOver),.N),
+                             by=list(Year,odd_cut_over)]
+
+summary_table=summary_table[order(Year)]
+
+plot(summary_table[,probabilistic_over_unibet,Year],xlab="Years",ylab="Probabilistic", main="Unibet Comparison of Probabilistic and Empirical over Years",ylim=c(0.4,0.5), col="blue")
+par(new=T)
+plot(summary_table[,empirical_over_unibet,Year],axes=F,col=3,pch=3, xlab=NA, ylab=NA, ylim=c(0.4,0.5))
+axis(side = 4)
+mtext(side = 4, line = 3, 'Empirical')
+legend("topleft",c("Probabilistic","Empirical"),col=c(1,3),pch= c(1,3),bty = "o", xjust =
+         1,yjust=1,x.intersp =0.5,y.intersp = 1)
+
+
+```
+## Including Plots
+
+You can also embed plots, for example:
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
